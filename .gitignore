@@ -1,0 +1,25 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Packaging / editable installs
+*.egg-info/
+build/
+dist/
+
+# Experiment output: regenerate with scripts/experiment.py
+results/
+
+# SLURM array job logs
+slurm_logs/
+
+# Test + tooling caches
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+
+# macOS
+.DS_Store
