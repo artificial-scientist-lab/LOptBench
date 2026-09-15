@@ -56,3 +56,11 @@ python scripts/voyager_velo_vs_adam.py  # both, same budget and seed, one table
 
 Edit the constants at the top of each script (`max_evals`, `random_seed`,
 learning rate) to change a run.
+
+
+## Experiment
+
+1. `python scripts/experiment.py --stage tune  # tunes the adam and na_adam learning rate and noise_std_start`
+2. `python scripts/experiment.py --select      # writes results/selection.json`
+3. `python scripts/experiment.py --stage study # runs for different seeds and budget(max_evals) to check what algorithm performs better`
+4. `python scripts/analyze.py`
