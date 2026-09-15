@@ -61,23 +61,25 @@ import numpy as np
 
 PROBLEM = "voyager"
 
-# These three are ITERATED, so they must be tuples. For a single value keep the
-# trailing comma -- (1000,) is a tuple, (1000) is just 1000.
-BUDGETS = (1000,)  # full study: (250, 500, 1000, 2000, 4000)
-STUDY_SEEDS = (42,)  # full study: tuple(range(10))
-TUNE_SEEDS = (41,)  # full study: (100, 101, 102)
+BUDGETS = (1000, 2000, 4000)    # same as max_evals = how many evaluations the algorithm is allowed
+STUDY_SEEDS = (42,44,46)  # full study: tuple(range(10))
+TUNE_SEEDS = (41,43,45)  # full study: (100, 101, 102)
+
+# Longest budget; budget-independent (adam, na_adam_fixed) algorithms are run only here.
+# (adam and na_adam will run for MAX_BUDGET and then the cases with shorter BUDGETS 
+# will be derived in analaze.py)
+MAX_BUDGET = max(BUDGETS)
 
 # This one is a SINGLE value, so it must be a plain int -- enumerate_cells
 # already wraps it as (TUNE_BUDGET,). A tuple here ends up as max_evals=(1000,)
 # and fails deep inside dfbench with "unsupported operand type(s) for -".
-TUNE_BUDGET = 1000
-
-#: Longest budget; budget-independent algorithms are run only here.
-MAX_BUDGET = max(BUDGETS)
+# TUNE_BUDGET = 1000 # TODO: 2000 maybe or higher? it is TUNE_BUDGET for the adam and na_adam
+                   # which are no good in perspective of(?)
+TUNE_BUDGET = MAX_BUDGET
 
 NA_ANNEAL_FRACTION = 0.5
 NA_ANNEAL_ITERS = 5000      #TODO: probably does not make sense if NA_ANNEAL_ITERS 
-                            # much less than the budgets (max_evals), because then 
+                            # much bigger than the budgets (max_evals), because then 
                             # we can have mostly only noise around(?)
 
 
