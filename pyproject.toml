@@ -7,32 +7,56 @@ name = "loptbench"
 version = "0.1.0"
 description = "Learned optimizers (VeLO) on the Differometor gravitational-wave detector benchmark"
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+# The core (src/loptbench/velo_by_hand) is pure jax + optax and runs on any
+# supported Python, including 3.14. The dfbench-dependent parts do NOT: see
+# the `bench` extra below.
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Artificial Scientist Lab" }]
 keywords = ["benchmark", "jax", "learned-optimizers", "optimization", "velo"]
 
+# Core: everything needed to define and meta-train the from-scratch learned
+# optimizer (velo_by_hand/velo_lopt.py, pes.py, demo.py). Deliberately small --
+# no haiku, no gin, no dfbench -- so it installs cleanly on a recent Python.
 dependencies = [
+    "jax>=0.9",
+    "jaxlib>=0.5",
+    "optax>=0.2.6",
+    "numpy>=2.0",
+]
+
+[project.optional-dependencies]
+# The benchmark problems: needed by velo_by_hand/dfbench_task.py (meta-training
+# on Voyager/UIFO), loptbench/algorithms/, and scripts/.
+#
+# WARNING: dfbench 0.3.3 declares `Requires-Python: >=3.11,<3.14` and pins
+# `jax==0.9.0.1`. So this extra cannot be installed on Python 3.14, and on an
+# environment with a newer jax it will downgrade it. Use a 3.12 environment
+# for anything that touches dfbench.
+bench = [
     "dfbench[optax]",
-    # learned_optimization's own runtime needs. Its setup.py pins these to
-    # 2021-era versions (dm-haiku==0.0.5, absl-py==0.12.0) which no longer
-    # resolve, so it must be installed with --no-deps and its real
-    # dependencies listed here instead. See README "Installation".
+    "jaxtyping>=0.3.3",
+]
+
+# Pretrained VeLO: loading Google's checkpoint through velo_loader.py /
+# velo_hyperv2.py. `learned_optimization` itself is NOT listed -- its setup.py
+# pins 2021-era versions (dm-haiku==0.0.5, absl-py==0.12.0) that no longer
+# resolve, so it must be installed separately with --no-deps and its real
+# dependencies are listed here instead. See README "Installation".
+pretrained = [
     "dm-haiku>=0.0.14",
     "flax>=0.10",
     "gin-config>=0.5.0",
     "chex>=0.1.85",
     "absl-py>=2.0",
-    "numpy>=2.0",
-    "tqdm",
 ]
 
-[project.optional-dependencies]
-# Needed only to run dfbench's own algorithms as baselines. dfbench's
-# `algorithms/__init__.py` imports its whole zoo eagerly, so comparing against
-# even plain Adam pulls in torch, evox, nevergrad and botorch.
+# dfbench's own algorithms, to compare against. Its `algorithms/__init__.py`
+# imports the whole zoo eagerly, so even plain Adam pulls in torch, evox,
+# nevergrad and botorch.
 baselines = ["dfbench[all]"]
+
 test = ["pytest>=8", "pytest-timeout>=2.2"]
 
 [project.urls]
