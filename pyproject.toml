@@ -34,10 +34,9 @@ dependencies = [
 # `jax==0.9.0.1`. So this extra cannot be installed on Python 3.14, and on an
 # environment with a newer jax it will downgrade it. Use a 3.12 environment
 # for anything that touches dfbench.
-bench = [
-    "dfbench[optax]",
-    "jaxtyping>=0.3.3",
-]
+# jaxtyping (used by algorithms/base.py) and matplotlib come in as dfbench's
+# own core dependencies, so they are not repeated here.
+bench = ["dfbench[optax]"]
 
 # Pretrained VeLO: loading Google's checkpoint through velo_loader.py /
 # velo_hyperv2.py. `learned_optimization` itself is NOT listed -- its setup.py

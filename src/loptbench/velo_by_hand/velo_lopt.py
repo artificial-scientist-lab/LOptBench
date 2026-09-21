@@ -99,16 +99,28 @@ class BufferLossAccumulators:
     def init(self, num_steps):
         halflife = jnp.logspace(1, jnp.log10(num_steps), self.n_decays)
         decays = jnp.exp(-1. / halflife)
+        # Every float leaf must share `decays`' dtype, or the buffer widens on
+        # the first update and lax.scan rejects the carry ("input and output
+        # carry types differ"). This bites because differometor enables x64
+        # globally, so `logspace` on a Python int gives float64 here while a
+        # literal `jnp.float32` below would not -- and then means * decays is
+        # float64 regardless of the loss's own dtype. Upstream hyper_v2 avoids
+        # this a different way, with tree_utils.match_type at the end of every
+        # update.
+        dtype = decays.dtype
         return {
-            "means": jnp.zeros((self.n_decays,), dtype=jnp.float32),
+            "means": jnp.zeros((self.n_decays,), dtype=dtype),
             "iteration": jnp.asarray(0, dtype=jnp.int32),
             "running_min": 999999999999. * jnp.ones((self.n_decays,),
-                                                    dtype=jnp.float32),
+                                                    dtype=dtype),
             "decays": decays,
         }
 
     def update(self, state, loss):
         jdecays = state["decays"]
+        # Incoming losses are float64 under dfbench, float32 elsewhere; pin
+        # them to the buffer so the carry dtype never depends on the caller.
+        loss = jnp.asarray(loss, dtype=jdecays.dtype)
         cor_mean = state["means"] / (1 - jdecays ** (state["iteration"] + 1))
         approx_max = jnp.max(cor_mean)
         approx_max = jnp.where(state["iteration"] == 0, loss, approx_max)
@@ -233,7 +245,7 @@ class VeLO:
 
     def init_meta_params(self, key):
         """Initialize phi. This is the ONLY thing meta-training changes."""
-        k1, k2, k3, k4, k5 = jax.random.split(key, 5)
+        k1, k2, k3, k4, k5, k6 = jax.random.split(key, 6)
         in_dim, n_w = self.tensor_feat_dim(), self.mlp_weight_count()
 
         def glorot(k, shape, gain=1.0):
@@ -251,6 +263,9 @@ class VeLO:
             "hyper_b": jnp.zeros((n_w,)),
             "lr_w": glorot(k5, (self.H, 1), gain=0.1),
             "lr_b": jnp.zeros((1,)),
+            # cross-tensor mixing: raw tensor features -> pooled global vector
+            "mix_w": glorot(k6, (in_dim, self.H)),
+            "mix_b": jnp.zeros((self.H,)),
         }
 
     # -------------------------------------------------------- accumulators
@@ -402,7 +417,7 @@ class VeLO:
         agg = self.lstm_features_for_tensor(p, st, frac_feat, loss_features)
         x = jnp.tanh(agg @ phi["proj_w"] + phi["proj_b"])
         h, c = self._lstm_step(phi, x, st.h, st.c)
-        
+
         return self._apply_mlp_step(p, F, h, phi), st._replace(h=h, c=c)
 
     # ------------------------------------------------------------ interface
