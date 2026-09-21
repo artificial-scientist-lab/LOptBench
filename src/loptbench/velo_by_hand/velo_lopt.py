@@ -81,6 +81,8 @@ def _second_moment_normalizer(x, eps: float = 1e-5):
     """Scale a feature channel to second moment 1 across the tensor."""
     return x * jax.lax.rsqrt(eps + jnp.mean(jnp.square(x)))
 
+def _match_type(new, old):
+    return jax.tree_util.tree_map(lambda a, b: jnp.asarray(a, dtype=b.dtype), new, old)
 
 # ---------------------------------------------------------------------------
 class BufferLossAccumulators:
@@ -459,10 +461,11 @@ class VeLO:
                 phi, p, g, st, frac_feat, loss_features)
             new_params.append(new_p)
             new_tensors.append(new_st)
+        new_state = OptState(tensors=new_tensors,
+                                loss_buffer=loss_buffer,
+                                step=state.step + 1)
+        return _match_type(new_params, params), _match_type(new_state, state)
 
-        return new_params, OptState(tensors=new_tensors,
-                                    loss_buffer=loss_buffer,
-                                    step=state.step + 1)
 
     @functools.partial(jax.jit, static_argnums=(0,))
     def update_mixing_layers(self, phi, state: OptState, params, grads, loss):
@@ -502,6 +505,7 @@ class VeLO:
             new_params.append(self._apply_mlp_step(p, F, h_all[i], phi))
             new_tensors.append(st._replace(h=h_all[i], c=c_all[i]))
  
-        return new_params, OptState(tensors=new_tensors,
-                                    loss_buffer=loss_buffer,
-                                    step=state.step + 1)
+        new_state = OptState(tensors=new_tensors,
+                                        loss_buffer=loss_buffer,
+                                        step=state.step + 1)
+        return _match_type(new_params, params), _match_type(new_state, state)
