@@ -230,7 +230,7 @@ def meta_train_voyager(
     outer_lr: float = 3e-4,
     normalized_output: bool = True,
     log_every: int = 25,
-    mixing_layers: bool = True,
+    use_mixing_layers: bool = True,
     out: str | None = "phi_voyager",
 ):
     """Meta-train the learned optimizer on VoyagerProblem.
@@ -269,7 +269,7 @@ def meta_train_voyager(
         inner_min=max(trunc_len, num_steps // 4), inner_max=num_steps,
         num_steps=num_steps, outer_steps=outer_steps, outer_lr=outer_lr,
         normalized_output=normalized_output, log_every=log_every,
-        mixing_layers=mixing_layers,
+        use_mixing_layers=use_mixing_layers,
     )
     print(f"\n{time.time() - t0:.0f}s: meta-loss {history[0]:.4f} -> "
           f"{history[-1]:.4f} (min {min(history):.4f})")
@@ -278,7 +278,7 @@ def meta_train_voyager(
         p = save_phi(out, phi, history, problem="voyager", hidden=hidden,
                      mlp_hidden=mlp_hidden, num_steps=num_steps,
                      normalized_output=normalized_output,
-                     mixing_layers=mixing_layers, outer_steps=outer_steps,
+                     use_mixing_layers=use_mixing_layers, outer_steps=outer_steps,
                      n_pairs=n_pairs, trunc_len=trunc_len, sigma=sigma)
         print(f"saved {p}.npz / {p}.json")
     return phi, history
@@ -298,7 +298,7 @@ def meta_train_uifo_grid(
     outer_lr: float = 3e-4,
     normalized_output: bool = True,
     log_every: int = 25,
-    mixing_layers: bool = True,
+    use_mixing_layers: bool = True,
     out: str | None = "phi_uifo_grid",
 ):
     """Meta-train across several UIFO topologies -- a real task distribution.
@@ -330,7 +330,7 @@ def meta_train_uifo_grid(
         inner_min=max(trunc_len, num_steps // 4), inner_max=num_steps,
         num_steps=num_steps, outer_steps=outer_steps, outer_lr=outer_lr,
         normalized_output=normalized_output, log_every=log_every,
-        mixing_layers=mixing_layers,
+        use_mixing_layers=use_mixing_layers,
     )
     print(f"\n{time.time() - t0:.0f}s: meta-loss {history[0]:.4f} -> "
           f"{history[-1]:.4f} (min {min(history):.4f})")
@@ -340,7 +340,7 @@ def meta_train_uifo_grid(
                      topology_seeds=list(topology_seeds), size=size,
                      hidden=hidden, mlp_hidden=mlp_hidden, num_steps=num_steps,
                      normalized_output=normalized_output,
-                     mixing_layers=mixing_layers, outer_steps=outer_steps,
+                     use_mixing_layers=mixinguse_mixing_layers_layers, outer_steps=outer_steps,
                      n_pairs=n_pairs, trunc_len=trunc_len, sigma=sigma)
         print(f"saved {p}.npz / {p}.json")
     return phi, history

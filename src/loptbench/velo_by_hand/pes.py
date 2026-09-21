@@ -449,7 +449,7 @@ def meta_train(task,
                outer_steps: int = 300,
                outer_lr: float = 3e-4,
                normalized_output: bool = True,
-               use_mixing_layers: bool = False,
+               use_mixing_layers: bool = False,     # NOTE: should it not be true by default? dfbench passes as true
                stack_antithetic_samples: bool = False,
                sign_delta_loss_scalar: Optional[float] = None,
                log_every: int = 25,
