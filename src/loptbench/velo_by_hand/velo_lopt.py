@@ -172,6 +172,7 @@ class VeLO:
         step_mult: float = 1e-3,
         exp_mult: float = 1e-3,
         normalized_output: bool = False, # True - ceLO normalization, False - veLO
+        mix_layers: bool = True,
         param_scale_mult: bool = False,
         param_scale_floor: float = 1e-3,
         num_steps: int = 1000,
@@ -198,6 +199,7 @@ class VeLO:
         """
         self.H = lstm_hidden_size
         self.ff_hidden_size = ff_hidden_size
+        self.mix_layers = mix_layers
         self.mom_decays = tuple(momentum_decays)
         self.rms_decays = tuple(rms_decays)
         self.fac_decays = tuple(adafactor_decays)
@@ -276,7 +278,10 @@ class VeLO:
 
     # ------------------------------------------------------------ features
     def _per_param_features(self, p, g, st: TensorState, frac_feat):
-        """(n_scalars, feat_dim) -- one row per scalar in the tensor."""
+        """
+        (n_scalars, feat_dim) -- one row per scalar in the tensor.
+        NOTE: implementation of _ff_mod(...) in original heyperv2
+        """
         chans = [p, g]
         for j in range(self.n_rms):
             rsqrt_rms = _safe_rsqrt(st.rms[j] + EPS)
@@ -322,6 +327,7 @@ class VeLO:
         raxes = tuple(range(1, rms.ndim))
         mean_rms = jnp.mean(rms, axis=raxes)
         var_rms = jnp.mean(
+            # NOTE: var_rms = jnp.mean(jnp.square(rms - mean_m), axis=leading_axis) # in original version - a bug!
             jnp.square(rms - mean_rms.reshape((-1,) + (1,) * (rms.ndim - 1))),
             axis=raxes)
 
@@ -359,22 +365,19 @@ class VeLO:
         b2 = w_flat[i:i + 2]
         return W1, b1, W2, b2
 
-    # ------------------------------------------------------ one tensor step
-    def _tensor_step(self, phi, p, g, st: TensorState, frac_feat, loss_features):
-        st = self._update_accumulators(st, g)
-
-        F = self._per_param_features(p, g, st, frac_feat)
-
-        agg = self.lstm_features_for_tensor(p, st, frac_feat, loss_features)
-        x = jnp.tanh(agg @ phi["proj_w"] + phi["proj_b"])
-        h, c = self._lstm_step(phi, x, st.h, st.c)
-
+    # -------------------------------------------------------- MLP step
+    def _apply_mlp_step(self, p, F, h, phi):
+        """Hidden state -> hypernetwork -> per-parameter MLP -> new parameters.
+ 
+        Shared by `update` and `update_mixing_layers`, so the two paths can
+        only differ in how h was computed.
+        """
         W1, b1, W2, b2 = self._unpack_mlp(h @ phi["hyper_w"] + phi["hyper_b"])
         log_lr = (h @ phi["lr_w"] + phi["lr_b"])[0]
-
+ 
         out = jax.nn.relu(F @ W1 + b1) @ W2 + b2
         d, mag = out[:, 0], out[:, 1]
-
+ 
         if self.normalized_output:      # Celo2 style
             d = d * _safe_rsqrt(jnp.mean(jnp.square(d)) + EPS)
             step_vec = d * jnp.exp(jnp.clip(log_lr, -8., 2.)) * self.step_mult
@@ -382,13 +385,25 @@ class VeLO:
             step_vec = self.step_mult * d * jnp.exp(
                 jnp.clip(self.exp_mult * mag, -8., 8.))
             step_vec = step_vec * jnp.exp(jnp.clip(log_lr, -4., 4.))
-
+ 
         if self.param_scale_mult:
             param_scale = jnp.sqrt(jnp.mean(jnp.square(p)) + 1e-9)
             param_scale = jnp.maximum(param_scale, self.param_scale_floor)
             step_vec = step_vec * param_scale
+ 
+        return p - step_vec.reshape(p.shape)
 
-        return p - step_vec.reshape(p.shape), st._replace(h=h, c=c)
+    # ------------------------------------------------------ one tensor step
+    def _tensor_step(self, phi, p, g, st: TensorState, frac_feat, loss_features):
+        st = self._update_accumulators(st, g)   # updates the accumulators at the tensor state
+
+        F = self._per_param_features(p, g, st, frac_feat) # constructing per param features with time horizon of frac_feat
+
+        agg = self.lstm_features_for_tensor(p, st, frac_feat, loss_features)
+        x = jnp.tanh(agg @ phi["proj_w"] + phi["proj_b"])
+        h, c = self._lstm_step(phi, x, st.h, st.c)
+        
+        return self._apply_mlp_step(p, F, h, phi), st._replace(h=h, c=c)
 
     # ------------------------------------------------------------ interface
     def init_state(self, params) -> OptState:
@@ -434,42 +449,44 @@ class VeLO:
                                     loss_buffer=loss_buffer,
                                     step=state.step + 1)
 
-    # TODO: extend the mixing of the layers
+    @functools.partial(jax.jit, static_argnums=(0,))
     def update_mixing_layers(self, phi, state: OptState, params, grads, loss):
+        """Like `update`, but with VeLO's cross-tensor mixing before the LSTM.
+ 
+        The loop splits into three phases because the max-pool needs every
+        tensor's aggregate features before ANY tensor's LSTM step runs.
+        """
         loss_buffer = self.loss_buffer_fns.update(state.loss_buffer, loss)
         loss_features = self.loss_buffer_fns.features(loss_buffer)
-        
         fraction_trained = state.step.astype(jnp.float32) / float(self.num_steps)
         frac_feat = _fractional_tanh_embed(fraction_trained)
-        # ---- phase 1: per tensor, up to the aggregate features -------------------
+ 
+        # ---- phase 1: per tensor, up to the aggregate features --------------
         sts, Fs, aggs = [], [], []
         for p, g, st in zip(params, grads, state.tensors):
-            st = self._update_accumulators(st, g)
+            st = self._update_accumulators(st, g)          # the ONLY update
             sts.append(st)
             Fs.append(self._per_param_features(p, g, st, frac_feat))
-            aggs.append(self.lstm_features_for_tensor(p, st, frac_feat, loss_features))
-
-        # ---- phase 2: GLOBAL -- this is where the mixing block lives -------------
-        A = jnp.stack(aggs)                                   # (n_tensors, in_dim)
-        X = jnp.tanh(A @ phi["proj_w"] + phi["proj_b"])       # (n_tensors, H)
+            aggs.append(self.lstm_features_for_tensor(
+                p, st, frac_feat, loss_features))
+ 
+        # ---- phase 2: global -- mixing, then one batched LSTM call ----------
+        A = jnp.stack(aggs)                                 # (n_tensors, in_dim)
+        X = jnp.tanh(A @ phi["proj_w"] + phi["proj_b"])     # (n_tensors, H)
         if self.mix_layers:
             mixed = jax.nn.relu(A @ phi["mix_w"] + phi["mix_b"])
-            v = jnp.max(mixed, axis=0, keepdims=True)         # (1, H) -- pools ALL tensors
-            X = X + v                                         # broadcast back to each
-
-        H_prev = jnp.stack([s.h for s in sts])                # (n_tensors, H)
-        C_prev = jnp.stack([s.c for s in sts])
-        h_all, c_all = self._lstm_step(phi, X, H_prev, C_prev)   # batched, one call
-
-        # ---- phase 3: per tensor, hypernetwork -> MLP -> step --------------------
+            X = X + jnp.max(mixed, axis=0, keepdims=True)   # pool over tensors
+        h_all, c_all = self._lstm_step(
+            phi, X,
+            jnp.stack([s.h for s in sts]),
+            jnp.stack([s.c for s in sts]))
+ 
+        # ---- phase 3: per tensor, hypernetwork -> MLP -> step ---------------
         new_params, new_tensors = [], []
         for i, (p, F, st) in enumerate(zip(params, Fs, sts)):
-            W1, b1, W2, b2 = self._unpack_mlp(h_all[i] @ phi["hyper_w"] + phi["hyper_b"])
-            log_lr = (h_all[i] @ phi["lr_w"] + phi["lr_b"])[0]
-            new_p, new_st = self._tensor_step( phi, p, g, st, frac_feat, loss_features)
-            new_params.append(new_p)                                               # unchanged from _tensor_step
+            new_params.append(self._apply_mlp_step(p, F, h_all[i], phi))
             new_tensors.append(st._replace(h=h_all[i], c=c_all[i]))
-
+ 
         return new_params, OptState(tensors=new_tensors,
-                                            loss_buffer=loss_buffer,
-                                            step=state.step + 1)
+                                    loss_buffer=loss_buffer,
+                                    step=state.step + 1)

@@ -22,7 +22,10 @@ from __future__ import annotations
 
 import functools
 import os
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Literal, Optional
+
+#: Which implementation of the architecture to run. See :func:`load_velo`.
+Backend = Literal["hand", "upstream"]
 
 from loptbench import _tf_stub  # noqa: F401  (must precede learned_optimization)
 
@@ -55,13 +58,31 @@ MAX_TRAINING_STEPS = 150_000
 def load_velo(
     name: str = VELO_CHECKPOINT,
     cache_dir: Optional[str] = None,
+    backend: Backend = "upstream",
 ) -> opt_base.Optimizer:
     """Load a pretrained VeLO, downloading the checkpoint if needed.
 
     Cached: deserializing ~9 MB of meta-parameters takes a few seconds, and
     ``optimize()`` is typically called once per random seed.
+
+    Args:
+        name: Checkpoint name under ``pretrained_lopts/``.
+        cache_dir: Where to cache the download.
+        backend: ``"hand"`` uses :mod:`loptbench.velo_arch`, our own pure-jax
+            implementation of the architecture. ``"upstream"`` uses
+            ``learned_optimization``'s ``HyperV2``, which is kept installed as
+            the oracle the hand implementation is tested against.
     """
     params_path = ensure_checkpoint(name, cache_dir=cache_dir) / "params"
+
+    if backend == "hand":
+        from loptbench import velo_arch
+        from loptbench.velo_theta import load_theta
+
+        return velo_arch.velo_opt(load_theta(params_path))
+
+    if backend != "upstream":
+        raise ValueError(f"backend must be 'hand' or 'upstream', got {backend!r}")
 
     lopt = hyper_v2.HyperV2(**VELO_HPARAMS)
     theta = lopt.init(jax.random.PRNGKey(0))
