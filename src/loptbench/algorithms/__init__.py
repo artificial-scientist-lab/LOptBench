@@ -5,6 +5,7 @@ To add one, subclass ``LearnedOptimizerAlgorithm`` and implement
 """
 
 from loptbench.algorithms.base import LearnedOptimizerAlgorithm
+from loptbench.algorithms.celo2 import Celo2
 from loptbench.algorithms.velo import VeLO
 
-__all__ = ["LearnedOptimizerAlgorithm", "VeLO"]
+__all__ = ["Celo2", "LearnedOptimizerAlgorithm", "VeLO"]

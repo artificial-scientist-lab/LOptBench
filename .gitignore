@@ -10,6 +10,14 @@ dist/
 # Experiment output: regenerate with scripts/experiment.py
 results/
 
+# Run output from Objective.save_run_data()
+scripts/data/
+
+# Celo2 checkpoint: keep theta.state, config.json, README.md; drop the
+# Hugging Face download leftovers (its LFS rules would apply to this repo)
+celo2-base/.cache/
+celo2-base/.gitattributes
+
 # SLURM array job logs
 slurm_logs/
 

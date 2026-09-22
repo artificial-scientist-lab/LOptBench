@@ -1,0 +1,28 @@
+{
+    "aug_reparam_range": [
+        0.001,
+        1000.0
+    ],
+    "aug_reparam_level": "global",
+    "aug": "reparam",
+    "step_mult": 0.001,
+    "weight_decay": 0.0,
+    "steps_per_jit": 10,
+    "num_tasks": 8,
+    "min_unroll_length": 100,
+    "max_unroll_length": 2000,
+    "trunc_length": 50,
+    "optimizer": "celo2base",
+    "task": "fast_velo",
+    "trainer": "pes",
+    "init_from_ckpt": null,
+    "init_ckpt_optimizer_name": null,
+    "resume": false,
+    "train_partial": false,
+    "exp_name": "celo2base",
+    "outer_lr": 0.0001,
+    "outer_iterations": 100000,
+    "ckpt_interval": 5000,
+    "metrics_every": 50,
+    "seed": 0
+}
