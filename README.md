@@ -14,34 +14,13 @@ notes below.
 conda create -n veloenv python=3.12
 conda activate veloenv
 
-# 1. The benchmark
-pip install "dfbench[all] @ git+https://github.com/artificial-scientist-lab/Differometor-Benchmark"
+# Core: all that demo.py, pes.py and velo_lopt.py import
+pip install "jax>=0.9" "optax>=0.2.6" "numpy>=2.0"
 
-# 2. learned_optimization's real dependencies
-pip install dm-haiku flax gin-config chex
+# Only if you meta-train on Voyager/UIFO (dfbench_task.py)
+pip install "dfbench[optax] @ git+https://github.com/artificial-scientist-lab/Differometor-Benchmark"
 
-# 3. learned_optimization itself, without its stale dependency pins
-pip install --no-deps "learned_optimization @ git+https://github.com/google/learned_optimization"
-
-# 4. This package
-pip install -e . --no-deps
 ```
-
-- **`[all]` in step 1:** `dfbench/algorithms/__init__.py` imports its whole
-  algorithm zoo eagerly, so importing even plain Adam needs torch, evox,
-  nevergrad and botorch.
-- **`--no-deps` in step 3:** `learned_optimization`'s `setup.py` pins 2021-era
-  versions (`dm-haiku==0.0.5`, `dm-launchpad-nightly`) that no longer resolve.
-  The library works fine with current releases; only the metadata is stale.
-- **`--no-deps` in step 4:** stops a re-resolve from upgrading `jax` out from
-  under `dfbench`.
-- **TensorFlow is not needed**, despite `learned_optimization` importing it.
-  `src/loptbench/_tf_stub.py` supplies a fake module covering the two
-  import-only statements. If it ever causes trouble:
-  `pip install tensorflow-cpu`.
-
-VeLO's pretrained weights (9 MB) download automatically on first use into
-`~/.cache/loptbench/`. Override with `$LOPTBENCH_CACHE`.
 
 ## Run
 
@@ -49,18 +28,7 @@ VeLO's pretrained weights (9 MB) download automatically on first use into
 conda activate veloenv
 cd /path/to/LOptBench
 
-python scripts/voyager_velo.py          # VeLO on Voyager
-python scripts/voyager_adam_gd.py       # dfbench's Adam, same shape
-python scripts/voyager_velo_vs_adam.py  # both, same budget and seed, one table
+cd src/loptbench/velo_by_hand
+# python demo.py           # synthetic MLP task: meta-train with PES, then compare to Adam
+python dfbench_task.py   # meta-train on a dfbench problem
 ```
-
-Edit the constants at the top of each script (`max_evals`, `random_seed`,
-learning rate) to change a run.
-
-
-## Experiment
-
-1. `python scripts/experiment.py --stage tune  # tunes the adam and na_adam learning rate and noise_std_start`
-2. `python scripts/experiment.py --select      # writes results/selection.json`
-3. `python scripts/experiment.py --stage study # runs for different seeds and budget(max_evals) to check what algorithm performs better`
-4. `python scripts/analyze.py`
