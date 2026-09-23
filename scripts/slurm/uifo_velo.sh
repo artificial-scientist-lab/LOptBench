@@ -6,9 +6,9 @@
 #SBATCH --ntasks=1                 # Number of tasks
 #SBATCH --cpus-per-task=8          # Number of CPU cores per task
 #SBATCH --nodes=1                  # Ensure that all cores are on the same machine with nodes=1
-#SBATCH --partition=2080-galvani   # Which partition will run your job
-#SBATCH --time=0-01:05             # Allowed runtime in D-HH:MM
-#SBATCH --gres=gpu:2               # (optional) Requesting type and number of GPUs
+#SBATCH --partition=a100-galvani   # Which partition will run your job
+#SBATCH --time=0-04:30             # Allowed runtime in D-HH:MM
+#SBATCH --gres=gpu:1               # (optional) Requesting type and number of GPUs
 #SBATCH --mem=50G                  # Total memory pool for all cores (see also --mem-per-cpu); exceeding this number will cause your job to fail.
 #SBATCH --output=/mnt/lustre/work/krenn/klz397/velo_uifo-%j.out       # File to which STDOUT will be written - make sure this is not on $HOME
 #SBATCH --error=/mnt/lustre/work/krenn/klz397/velo_uifo-%j.err        # File to which STDERR will be written - make sure this is not on $HOME
@@ -30,7 +30,8 @@ ls $WORK # not necessary just here to illustrate that $WORK is available here
 
 # Compute Phase
 # srun python3 runfile.py  # srun will automatically pickup the configuration defined via `#SBATCH` and `sbatch` command line arguments
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate /mnt/lustre/work/krenn/klz397/.conda/py-312-veloenv
 cd /home/krenn/klz397/LOptBench
-python -c "import jax; print(jax.devices())"   # should show a CudaDevice, not only CPU
+python -c "import jax; assert jax.default_backend() == 'gpu', jax.devices(); print(jax.devices())"
 python scripts/uifo_velo_vs_adam.py

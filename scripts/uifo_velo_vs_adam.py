@@ -15,6 +15,7 @@ MAX_EVALS = 2000
 SEEDS = [42]
 UIFO_SIZE = 3
 ADAM_LR = 0.1
+VELO_NUM_STEPS = 1000 # number of evaluation steps, have to sweep across different values to find the best one (TODO)
 
 rows = []
 
@@ -22,11 +23,14 @@ for seed in SEEDS:
     problem = UIFOProblem(topology_seed=seed, size=UIFO_SIZE)
 
     for name, algorithm, hparams in [
-        ("velo", VeLO(), {}),
-        ("adam", AdamGD(), {"learning_rate": ADAM_LR}),
+        ("velo", VeLO(), {}), #("adam", AdamGD(), {"learning_rate": ADAM_LR}),
     ]:
-        obj = Objective(problem, verbose=0, max_evals=MAX_EVALS)
-        algorithm.optimize(obj, random_seed=seed, **hparams)
+        obj = Objective(problem,
+			verbose=0,
+			max_time=4*60*60,print_every=1000, display_mode="log"
+		)
+        algorithm.optimize(obj, random_seed=seed, num_steps = VELO_NUM_STEPS,
+                            **hparams)
 
         rows.append(
             {
@@ -49,7 +53,7 @@ for r in rows:
     )
 
 print()
-for name in ("velo", "adam"):
+for name in ("velo",): # "adam" commented out
     best = [r["best"] for r in rows if r["algorithm"] == name]
     print(f"{name:<10} best loss over {len(best)} seeds: "
           f"median {sorted(best)[len(best) // 2]:.4f}   min {min(best):.4f}")
