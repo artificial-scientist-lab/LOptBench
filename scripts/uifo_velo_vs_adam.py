@@ -12,7 +12,7 @@ from dfbench.problems import UIFOProblem
 from loptbench import VeLO
 
 MAX_EVALS = 2000
-SEEDS = [42]
+SEEDS = [0]
 UIFO_SIZE = 3
 ADAM_LR = 0.1
 VELO_NUM_STEPS = 1000 # number of evaluation steps, have to sweep across different values to find the best one (TODO)

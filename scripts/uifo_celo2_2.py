@@ -10,9 +10,9 @@ from dfbench.problems import UIFOProblem
 from loptbench import Celo2
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-s", "--seed", type=int, default=42)
+parser.add_argument("-s", "--seed", type=int, default=0)
 parser.add_argument("-c", "--checkpoint",help="Celo2 checkpoint file", 
-                    default='../celo2-base/theta.state')
+                    default='/home/krenn/klz397/LOptBench/celo2-base/theta.state')
 args = parser.parse_args()
 seed = args.seed
 
