@@ -36,4 +36,4 @@ PY=/mnt/lustre/work/krenn/klz397/.conda/py-312-veloenv/bin/python
 
 cd /home/krenn/klz397/LOptBench
 $PY -c "import jax; assert jax.default_backend() == 'gpu', jax.devices(); print(jax.devices())"
-$PY scripts/uifo_velo_vs_adam.py
+$PY scripts/uifo_velo_vs_adam.py --num_steps=1500

@@ -17,16 +17,19 @@ args = parser.parse_args()
 seed = args.seed
 
 # TODO: the constants sweep around?
-max_evals = 1000
+max_evals = 1000 # IT IS NOT USED 
+# 
 weight_decay = 1e-1
 learning_rate = 1e-2
+UIFO_SIZE = 3
+VELO_NUM_STEPS = 1000 # NOT applicable to CELO2, but kept to escape any errors
 
-problem = UIFOProblem(topology_seed=seed, size=3)
+problem = UIFOProblem(topology_seed=seed, size=UIFO_SIZE)
 obj = Objective(
     problem,
     verbose=1,
-    max_evals=max_evals,
-    max_time=10,
+    # max_evals=max_evals,
+    max_time=4*60*60,
     # print_every=1000,
     save_params_history=True,
     save_to_file_every=1000,
@@ -40,6 +43,7 @@ Celo2(args.checkpoint, orthogonalize=False).optimize(
     obj,
     learning_rate=learning_rate,
     weight_decay=weight_decay,
+    num_steps=VELO_NUM_STEPS,
     patience=None,
     random_seed=seed,
 )
